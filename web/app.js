@@ -53,57 +53,86 @@ function currentMode() {
   return document.querySelector('input[name="mode"]:checked').value;
 }
 
-// Read the table inputs back into the stored rows for a given mode.
-function syncTableToState(m) {
-  const rows = [];
-  for (const tr of $("layers").tBodies[0].rows) {
+// Read the row inputs back into the stored layers for a given mode.
+function syncLayers(m) {
+  const out = [];
+  for (const rowEl of $("layer-rows").children) {
     const row = {};
-    COLS[m].forEach((col, i) => {
-      row[col.key] = parseFloat(tr.cells[i].querySelector("input").value);
-    });
-    rows.push(row);
+    rowEl.querySelectorAll("input").forEach((inp) => { row[inp.dataset.key] = parseFloat(inp.value); });
+    out.push(row);
   }
-  layersByMode[m] = rows;
+  layersByMode[m] = out;
 }
 
-function renderTable() {
-  const cols = COLS[mode];
-  const thead = $("layers").tHead;
-  const tbody = $("layers").tBodies[0];
-  thead.innerHTML = "<tr>" + cols.map((c) => `<th>${c.label}</th>`).join("") + "<th></th></tr>";
-  tbody.innerHTML = "";
-  for (const row of layersByMode[mode]) {
-    const tr = tbody.insertRow();
-    for (const col of cols) {
-      const td = tr.insertCell();
-      const val = row[col.key] !== undefined ? row[col.key] : "";
-      td.innerHTML = `<input type="number" step="any" value="${val}">`;
-    }
-    const del = tr.insertCell();
-    del.innerHTML = '<button type="button" class="del" title="remove">×</button>';
-    del.querySelector("button").onclick = () => {
-      syncTableToState(mode);
-      layersByMode[mode].splice([...tbody.rows].indexOf(tr), 1);
-      renderTable();
-    };
+// Depth is NOT an input: it is the sum of the layer thicknesses. Update the
+// read-only display and return the total.
+function updateDepth() {
+  let d = 0;
+  for (const inp of $("layer-rows").querySelectorAll('input[data-key="thickness"]')) {
+    const v = parseFloat(inp.value);
+    if (!Number.isNaN(v)) d += v;
   }
+  $("depth_display").textContent = d > 0 ? (+d.toFixed(4)) + " m" : "—";
+  return d;
+}
+
+function renderLayers() {
+  const cols = COLS[mode];
+  // Header labels aligned to the input grid, plus a spacer over the × column.
+  const head = $("layer-head");
+  head.innerHTML =
+    `<div class="layer-grid" style="--ncols:${cols.length}">` +
+    cols.map((c) => `<span>${c.label}</span>`).join("") +
+    `</div><span class="del-spacer"></span>`;
+
+  const rows = $("layer-rows");
+  rows.innerHTML = "";
+  layersByMode[mode].forEach((row, idx) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "layer-row";
+    const grid = document.createElement("div");
+    grid.className = "layer-grid";
+    grid.style.setProperty("--ncols", cols.length);
+    grid.innerHTML = cols.map((c) => {
+      const v = row[c.key] !== undefined ? row[c.key] : "";
+      return `<input type="number" step="any" data-key="${c.key}" value="${v}">`;
+    }).join("");
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "del";
+    del.title = "delete layer";
+    del.textContent = "×";
+    del.onclick = () => {
+      syncLayers(mode);
+      layersByMode[mode].splice(idx, 1);
+      renderLayers();
+    };
+    rowEl.appendChild(grid);
+    rowEl.appendChild(del);
+    rows.appendChild(rowEl);
+  });
+
   $("csv_hint").textContent =
     "CSV columns: " + cols.map((c) => c.key).join(", ") + " (one row per layer; a header row is ignored)";
+  updateDepth();
 }
 
+// Recompute the depth readout whenever a thickness is edited.
+$("layer-rows").addEventListener("input", updateDepth);
+
 $("add_layer").onclick = () => {
-  syncTableToState(mode);
+  syncLayers(mode);
   const blank = {};
   COLS[mode].forEach((c) => (blank[c.key] = 0));
   layersByMode[mode].push(blank);
-  renderTable();
+  renderLayers();
 };
 
 for (const r of document.querySelectorAll('input[name="mode"]')) {
   r.onchange = () => {
-    syncTableToState(mode);   // save edits from the old mode's table
+    syncLayers(mode);         // save edits from the old mode's rows
     mode = currentMode();
-    renderTable();
+    renderLayers();
   };
 }
 
@@ -126,7 +155,7 @@ $("csv").addEventListener("change", (e) => {
     }
     if (rows.length) {
       layersByMode[mode] = rows;
-      renderTable();
+      renderLayers();
       statusEl.textContent = `loaded ${rows.length} layers from CSV`;
     } else {
       statusEl.textContent = "no valid rows found in CSV";
@@ -148,9 +177,10 @@ function num(id) {
 }
 
 function gatherParams() {
-  syncTableToState(mode);
+  syncLayers(mode);
+  const depth = layersByMode[mode].reduce((s, r) => s + (r.thickness || 0), 0);
   return {
-    length: num("length"), depth: num("depth"), dx: num("dx"), dz: num("dz"),
+    length: num("length"), depth: depth, dx: num("dx"), dz: num("dz"),
     dt: num("dt"), total_time: num("total_time"),
     velocity_mode: mode,
     layers: layersByMode[mode],
@@ -414,4 +444,4 @@ function drawBreakthrough(markTime) {
 }
 
 // --------------------------------- Startup --------------------------------
-renderTable();
+renderLayers();

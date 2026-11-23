@@ -20,7 +20,7 @@
       <fieldset>
         <legend>Domain &amp; grid</legend>
         <label>Length [m] <input id="length" type="number" value="100" step="any"></label>
-        <label>Depth [m] <input id="depth" type="number" value="40" step="any"></label>
+        <label>Depth [m] <span id="depth_display" class="readout">—</span></label>
         <label>Δx [m] <input id="dx" type="number" value="1" step="any"></label>
         <label>Δz [m] <input id="dz" type="number" value="1" step="any"></label>
       </fieldset>
@@ -54,7 +54,10 @@
           <label><input type="radio" name="mode" value="velocity" checked> seepage velocity</label>
           <label><input type="radio" name="mode" value="darcy"> Darcy (K, i, n)</label>
         </div>
-        <table id="layers"><thead></thead><tbody></tbody></table>
+        <div id="layers">
+          <div id="layer-head" class="layer-head"></div>
+          <div id="layer-rows"></div>
+        </div>
         <div class="layer-buttons">
           <button id="add_layer" type="button">+ Add layer</button>
           <label class="csv">Load CSV <input id="csv" type="file" accept=".csv,text/csv"></label>
