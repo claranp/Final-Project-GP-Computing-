@@ -163,14 +163,48 @@ function gatherParams() {
   };
 }
 
+// --------------------------- Stability pre-check --------------------------
+// Crank–Nicolson ADI is unconditionally stable (no Δt limit), so the real
+// failure mode is NOT blow-up but spurious oscillations when the cell Péclet
+// number Pe = |v|·Δx/D exceeds 2. We compute the worst-case Pe and Cr from the
+// inputs and warn before running.
+function stabilityDiagnose(p) {
+  let maxPe = 0, maxCr = 0;
+  for (const row of p.layers) {
+    const v = p.velocity_mode === "darcy"
+      ? (row.K * row.gradient) / row.porosity
+      : row.velocity;
+    if (row.dispersion > 0) maxPe = Math.max(maxPe, Math.abs(v) * p.dx / row.dispersion);
+    maxCr = Math.max(maxCr, Math.abs(v) * p.dt / p.dx);
+  }
+  return { maxPe, maxCr };
+}
+
 // ------------------------------- Worker I/O -------------------------------
 const worker = new Worker("worker.js");
 
 runBtn.onclick = () => {
+  const params = gatherParams();
+  const { maxPe, maxCr } = stabilityDiagnose(params);
+
+  if (maxPe > 2) {
+    const proceed = confirm(
+      "⚠ Likely oscillatory (non-physical) solution.\n\n" +
+      `Cell Péclet number Pe = ${maxPe.toFixed(2)}  (> 2)  at Δx = ${params.dx} m.\n\n` +
+      "Crank–Nicolson is unconditionally stable, so it will NOT blow up, but the " +
+      "central-difference advection term produces oscillations — wiggles and even " +
+      "negative concentrations — whenever Pe > 2.\n" +
+      "Fix: reduce Δx, or increase the dispersion D of the offending layer.\n\n" +
+      `(Courant number Cr = ${maxCr.toFixed(2)} affects accuracy only, not stability.)\n\n` +
+      "Run anyway?"
+    );
+    if (!proceed) { statusEl.textContent = "cancelled — reduce Δx or raise D (Pe > 2)"; return; }
+  }
+
   stopAnimation();
   statusEl.textContent = "running…";
   runBtn.disabled = true;
-  worker.postMessage(gatherParams());
+  worker.postMessage(params);
 };
 
 worker.onmessage = (e) => {

@@ -14,7 +14,9 @@ code { background: #f0f0f0; padding: 0 0.25em; border-radius: 3px; }
 
 /* Two-column layout: controls on the left, results on the right. */
 .layout { display: grid; grid-template-columns: 340px 1fr; gap: 1.5rem; align-items: start; }
-@media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+/* Let the 1fr column shrink so its canvases scale instead of overflowing. */
+.layout > * { min-width: 0; }
+@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
 
 fieldset { border: 1px solid #ccc; border-radius: 6px; margin: 0 0 0.9rem; padding: 0.6rem 0.8rem; }
 legend { font-weight: 600; padding: 0 0.3rem; }
@@ -59,6 +61,7 @@ figure { margin: 0; }
   border: 1px solid #ccc;
   background: #fafafa;
 }
-#colorbar { margin-top: 0.3rem; }
+#colorbar { margin-top: 0.3rem; max-width: 100%; }
 #breakthrough { width: 100%; max-width: 620px; height: auto; border: 1px solid #eee; }
+#results { overflow: hidden; }
 figcaption { color: #555; font-size: 0.85rem; margin-top: 0.3rem; }
