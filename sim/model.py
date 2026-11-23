@@ -156,3 +156,81 @@ def run_simulation(grid, D, vx, dt, total_time, src_mask, source_conc,
         "Pe": Pe,
         "Cr": Cr,
     }
+
+
+def run_from_params(p):
+    """Build and run a simulation from a plain parameter dict (UI adapter).
+
+    This is a thin, UI-agnostic adapter: it takes a dictionary of inputs, calls
+    the same `layer_fields` / `run_simulation` as everything else, and returns a
+    dictionary of plain Python numbers and lists (no NumPy arrays) so it
+    converts cleanly to a JavaScript object in the browser.
+
+    Expected keys in `p`:
+        length, depth, dx, dz, dt, total_time          (floats)
+        velocity_mode : 'velocity' or 'darcy'
+        layers : list of row dicts, top-to-bottom, with 'thickness',
+                 'dispersion', and either 'velocity' (velocity mode) or
+                 'K', 'gradient', 'porosity' (darcy mode)
+        source   : {'x', 'width', 'conc', 'leak_duration' (None = continuous)}
+        receptor : {'x', 'z'}
+        nframes  : number of concentration-map frames to return (default 40)
+
+    Returns a dict with grid info, animation frames (flattened row-major
+    [ix*nz + iz]), the breakthrough curve, layer interfaces, Pe/Cr, and the peak
+    concentration (for a shared colour scale).
+    """
+    grid = build_grid(p["length"], p["depth"], p["dx"], p["dz"])
+
+    ## . . Build the layer table, converting Darcy inputs to velocity if needed
+    mode = p.get("velocity_mode", "velocity")
+    layers = []
+    for row in p["layers"]:
+        if mode == "darcy":
+            v = darcy_velocity(row["K"], row["gradient"], row["porosity"])
+        else:
+            v = row["velocity"]
+        layers.append({"thickness": row["thickness"],
+                       "velocity": v,
+                       "dispersion": row["dispersion"]})
+    D, vx, interfaces = layer_fields(grid.zz, layers)
+
+    src = source_mask(grid.xx, p["source"]["x"], p["source"]["width"])
+    recv = receptor_index(grid, p["receptor"]["x"], p["receptor"]["z"])
+
+    ## . . Choose evenly spaced snapshot frames ON the time-step grid so they
+    ## . . match exactly (no tolerance issues).
+    nt = int(round(p["total_time"] / p["dt"]))
+    all_times = np.arange(nt + 1) * p["dt"]
+    nframes = int(p.get("nframes", 40))
+    idx = np.unique(np.round(np.linspace(0, nt, nframes)).astype(int))
+    snap_times = [float(all_times[k]) for k in idx]
+
+    res = run_simulation(
+        grid, D, vx, p["dt"], p["total_time"],
+        src_mask=src, source_conc=p["source"]["conc"],
+        leak_duration=p["source"].get("leak_duration"),
+        receptor=recv, snapshot_times=snap_times,
+    )
+
+    ## . . Order the frames and find the global peak for a shared colour scale
+    frame_times = sorted(res["snapshots"].keys())
+    frame_arrays = [res["snapshots"][t] for t in frame_times]
+    peak = max((float(a.max()) for a in frame_arrays), default=0.0)
+
+    ## . . Breakthrough curve: replace any NaN (defensive) with None for JS
+    bt = res["breakthrough"]
+    breakthrough = [None if np.isnan(v) else float(v) for v in bt]
+
+    return {
+        "nx": int(grid.nx), "nz": int(grid.nz),
+        "length": float(grid.length), "depth": float(grid.depth),
+        "interfaces": [float(z) for z in interfaces],
+        "frame_times": [float(t) for t in frame_times],
+        "frames": [a.flatten().tolist() for a in frame_arrays],
+        "times": res["times"].tolist(),
+        "breakthrough": breakthrough,
+        "receptor": {"x": float(grid.xx[recv[0]]), "z": float(grid.zz[recv[1]])},
+        "Pe": float(res["Pe"]), "Cr": float(res["Cr"]),
+        "peak": peak,
+    }

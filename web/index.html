@@ -3,30 +3,91 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aquifer Contaminant Transport — CN-ADI (Pyodide demo)</title>
+  <title>Aquifer Contaminant Transport — CN-ADI</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h1>Aquifer Contaminant Transport</h1>
   <p class="subtitle">
-    Crank–Nicolson ADI solver running in your browser via Pyodide.
-    This is a minimal deployment check: it runs the real <code>sim/</code>
-    Python package (the same code the verification notebook imports) on a
-    three-layer example and draws the final concentration field.
+    Crank–Nicolson ADI solver (advection–dispersion) running in your browser via
+    Pyodide. The physics is the real <code>sim/</code> Python package — the same
+    code the verification notebook imports.
   </p>
 
-  <button id="run" disabled>Run simulation</button>
-  <span id="status">loading Pyodide…</span>
+  <div class="layout">
+    <!-- ============================ CONTROLS ============================ -->
+    <form id="controls" onsubmit="return false">
+      <fieldset>
+        <legend>Domain &amp; grid</legend>
+        <label>Length [m] <input id="length" type="number" value="100" step="any"></label>
+        <label>Depth [m] <input id="depth" type="number" value="40" step="any"></label>
+        <label>Δx [m] <input id="dx" type="number" value="1" step="any"></label>
+        <label>Δz [m] <input id="dz" type="number" value="1" step="any"></label>
+      </fieldset>
 
-  <div id="diagnostics"></div>
+      <fieldset>
+        <legend>Time</legend>
+        <label>Δt [days] <input id="dt" type="number" value="0.5" step="any"></label>
+        <label>Total time [days] <input id="total_time" type="number" value="150" step="any"></label>
+      </fieldset>
 
-  <figure>
-    <canvas id="map" width="100" height="40"></canvas>
-    <figcaption>
-      Concentration C(x, z) [mg/L] — x horizontal (m), z depth downward (m).
-      Dashed lines are layer interfaces.
-    </figcaption>
-  </figure>
+      <fieldset>
+        <legend>Source (top boundary)</legend>
+        <label>x location [m] <input id="src_x" type="number" value="20" step="any"></label>
+        <label>Width [m] <input id="src_width" type="number" value="10" step="any"></label>
+        <label>Concentration [mg/L] <input id="src_conc" type="number" value="100" step="any"></label>
+        <label class="check">
+          <input id="continuous" type="checkbox" checked> Continuous leak
+        </label>
+        <label id="leak_label">Leak duration [days] <input id="leak_duration" type="number" value="50" step="any"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Receptor (well/house)</legend>
+        <label>x [m] <input id="recv_x" type="number" value="70" step="any"></label>
+        <label>z depth [m] <input id="recv_z" type="number" value="5" step="any"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Layers (top → bottom)</legend>
+        <div class="radio-row">
+          <label><input type="radio" name="mode" value="velocity" checked> seepage velocity</label>
+          <label><input type="radio" name="mode" value="darcy"> Darcy (K, i, n)</label>
+        </div>
+        <table id="layers"><thead></thead><tbody></tbody></table>
+        <div class="layer-buttons">
+          <button id="add_layer" type="button">+ Add layer</button>
+          <label class="csv">Load CSV <input id="csv" type="file" accept=".csv,text/csv"></label>
+        </div>
+        <p class="hint" id="csv_hint"></p>
+      </fieldset>
+
+      <button id="run" type="button" disabled>Run simulation</button>
+      <span id="status">loading Pyodide…</span>
+    </form>
+
+    <!-- ============================ RESULTS ============================ -->
+    <section id="results">
+      <div id="diagnostics">Run a simulation to see results.</div>
+
+      <h2>Concentration map C(x, z)</h2>
+      <div class="anim-controls">
+        <button id="play" type="button" disabled>▶ Play</button>
+        <input id="frame" type="range" min="0" max="0" value="0" disabled>
+        <span id="frame_time">t = — days</span>
+      </div>
+      <figure>
+        <canvas id="map" width="100" height="40"></canvas>
+        <figcaption>x horizontal [m], z depth downward [m]; dashed lines are layer interfaces.</figcaption>
+      </figure>
+      <canvas id="colorbar" width="320" height="38"></canvas>
+
+      <h2>Breakthrough curve at receptor</h2>
+      <figure>
+        <canvas id="breakthrough" width="620" height="260"></canvas>
+      </figure>
+    </section>
+  </div>
 
   <script src="app.js"></script>
 </body>
