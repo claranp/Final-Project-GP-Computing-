@@ -173,12 +173,16 @@ def cell_diagnostics(D, vx, dx, dt):
 
     Pe = |vx| dx / D   (central differences oscillate when Pe > 2)
     Cr = |vx| dt / dx  (CN is stable for any dt but loses accuracy for large Cr)
-    Accepts scalars or depth arrays; reduces to the worst (largest) cell.
+
+    Peclet is evaluated PER DEPTH NODE (|vx(z)| and D(z) from the same layer)
+    and the worst (largest) cell is reported; taking min(D) and max(|vx|)
+    separately would wrongly mix values from different layers.
     """
     D = np.asarray(D, dtype=float)
     vx = np.asarray(vx, dtype=float)
-    Dmin = np.min(D)
-    vmax = np.max(np.abs(vx))
-    Pe = np.inf if Dmin == 0 else vmax * dx / Dmin
-    Cr = vmax * dt / dx
-    return float(Pe), float(Cr)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        pe_field = np.abs(vx) * dx / D                 # . . D = 0, vx != 0 -> inf
+    pe_field = np.where(np.abs(vx) == 0.0, 0.0, pe_field)   # . . no advection -> Pe = 0
+    Pe = float(np.max(pe_field))
+    Cr = float(np.max(np.abs(vx)) * dt / dx)
+    return Pe, Cr

@@ -1,0 +1,7 @@
+# Local development / verification environment (pinned).
+# The browser build runs numpy ONLY (loaded by Pyodide); see README.
+numpy==2.5.4
+matplotlib==3.11.2
+jupyterlab==4.6.5
+nbconvert==7.17.2
+nbformat==5.11.1
