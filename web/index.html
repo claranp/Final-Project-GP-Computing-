@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aquifer Contaminant Transport — CN-ADI (Pyodide demo)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Aquifer Contaminant Transport</h1>
+  <p class="subtitle">
+    Crank–Nicolson ADI solver running in your browser via Pyodide.
+    This is a minimal deployment check: it runs the real <code>sim/</code>
+    Python package (the same code the verification notebook imports) on a
+    three-layer example and draws the final concentration field.
+  </p>
+
+  <button id="run" disabled>Run simulation</button>
+  <span id="status">loading Pyodide…</span>
+
+  <div id="diagnostics"></div>
+
+  <figure>
+    <canvas id="map" width="100" height="40"></canvas>
+    <figcaption>
+      Concentration C(x, z) [mg/L] — x horizontal (m), z depth downward (m).
+      Dashed lines are layer interfaces.
+    </figcaption>
+  </figure>
+
+  <script src="app.js"></script>
+</body>
+</html>
