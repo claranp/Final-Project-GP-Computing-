@@ -246,6 +246,7 @@ function showResult(data) {
     `peak concentration (colour scale max) = ${data.peak.toFixed(2)} mg/L`;
 
   drawColorbar(data.peak);
+  positionMarkers(data);
   renderFrame(0);
 }
 
@@ -277,21 +278,18 @@ function renderFrame(i) {
 }
 
 // --------------------------------- Drawing --------------------------------
-// Blue -> green -> yellow -> red colour ramp for t in [0, 1].
+// Viridis colormap (perceptually uniform), 11 samples interpolated linearly.
+const VIRIDIS = [
+  [68, 1, 84], [72, 40, 120], [62, 74, 137], [49, 104, 142], [38, 130, 142],
+  [31, 158, 137], [53, 183, 121], [109, 205, 89], [180, 222, 44], [221, 228, 30], [253, 231, 37],
+];
 function colormap(t) {
   t = Math.max(0, Math.min(1, t));
-  const stops = [
-    [0.0, [8, 29, 88]], [0.25, [34, 94, 168]], [0.5, [65, 182, 196]],
-    [0.75, [254, 204, 92]], [1.0, [227, 26, 28]],
-  ];
-  for (let i = 1; i < stops.length; i++) {
-    if (t <= stops[i][0]) {
-      const [t0, c0] = stops[i - 1], [t1, c1] = stops[i];
-      const f = (t - t0) / (t1 - t0);
-      return c0.map((c, k) => Math.round(c + f * (c1[k] - c)));
-    }
-  }
-  return stops[stops.length - 1][1];
+  const x = t * (VIRIDIS.length - 1);
+  const i = Math.min(Math.floor(x), VIRIDIS.length - 2);
+  const f = x - i;
+  const a = VIRIDIS[i], b = VIRIDIS[i + 1];
+  return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2])].map(Math.round);
 }
 
 function renderMap(frame) {
@@ -320,17 +318,45 @@ function renderMap(frame) {
 
 function drawColorbar(peak) {
   const ctx = cbarCanvas.getContext("2d");
-  const w = cbarCanvas.width, h = 18;
+  const w = cbarCanvas.width, h = cbarCanvas.height;
+  ctx.clearRect(0, 0, w, h);          // clear so repeated runs don't stack text
+
+  const barH = 16;
   for (let x = 0; x < w; x++) {
     const [r, g, b] = colormap(x / (w - 1));
     ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.fillRect(x, 0, 1, h);
+    ctx.fillRect(x, 0, 1, barH);
   }
+
+  // Five evenly spaced ticks; end labels are left/right aligned so large
+  // numbers (e.g. 1000) never overlap or run off the canvas.
   ctx.fillStyle = "#000";
+  ctx.strokeStyle = "#000";
   ctx.font = "11px system-ui, sans-serif";
-  ctx.fillText("0", 0, h + 13);
-  ctx.fillText((peak / 2).toFixed(1), w / 2 - 10, h + 13);
-  ctx.fillText(peak.toFixed(1) + " mg/L", w - 60, h + 13);
+  const fmt = (v) => v === 0 ? "0"
+    : (peak >= 100 ? Math.round(v).toString() : Number(v.toPrecision(3)).toString());
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  ticks.forEach((fr, i) => {
+    const x = fr * (w - 1);
+    ctx.beginPath(); ctx.moveTo(x, barH); ctx.lineTo(x, barH + 3); ctx.stroke();
+    ctx.textAlign = i === 0 ? "left" : (i === ticks.length - 1 ? "right" : "center");
+    ctx.fillText(fmt(peak * fr), x, barH + 15);
+  });
+  ctx.textAlign = "center";
+  ctx.fillText("concentration C [mg/L]", w / 2, h - 2);
+}
+
+// Overlay the source patch (bar) and receptor (dot) on the map, positioned by
+// percentage so they track the responsive canvas size. Set once per result.
+function positionMarkers(d) {
+  const sm = $("src-marker"), rm = $("recv-marker");
+  sm.style.left = ((d.source.x - d.source.width / 2) / d.length * 100) + "%";
+  sm.style.width = (d.source.width / d.length * 100) + "%";
+  sm.style.top = "0";
+  sm.innerHTML = '<span class="mlabel">source</span>';
+  rm.style.left = (d.receptor.x / d.length * 100) + "%";
+  rm.style.top = (d.receptor.z / d.depth * 100) + "%";
+  rm.innerHTML = '<span class="mlabel">receptor</span>';
 }
 
 function drawBreakthrough(markTime) {

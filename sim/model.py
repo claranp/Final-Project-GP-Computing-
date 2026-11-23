@@ -231,6 +231,7 @@ def run_from_params(p):
         "times": res["times"].tolist(),
         "breakthrough": breakthrough,
         "receptor": {"x": float(grid.xx[recv[0]]), "z": float(grid.zz[recv[1]])},
+        "source": {"x": float(p["source"]["x"]), "width": float(p["source"]["width"])},
         "Pe": float(res["Pe"]), "Cr": float(res["Cr"]),
         "peak": peak,
     }
